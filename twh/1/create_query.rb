@@ -1,122 +1,78 @@
 #!/usr/bin/ruby
 # -*- coding: utf-8 -*-
 
-require 'nokogiri'
+require 'csv'
 
-def get_station(ken_dir_path, ken_name, rosen_name, rosen_id)
-  ret = []
+# 検索条件のテーブルファイル
+f = File.open("./data/query/cond_table.tsv", "w")
 
-  target_path = ken_dir_path + "/" + ken_name + "_" + rosen_name + ".html"
+# その他検索条件
+CSV.foreach("./data/query/other_cond.tsv", {:col_sep => "\t"}) do |row|
+  row.delete(nil)
 
-  unless File.exist?(target_path)
-    ret << [ken_name, rosen_name, rosen_id, "nil", "nil"]
-    return ret
-  end
+  next unless row[0] =~ /value/
 
-  doc = Nokogiri::HTML(File.open(target_path))
-
-  e_form = doc.css('form#prg-flowform')
-
-  e_form.css('label').each do |e_label|
-    # 路線名, 路線ID を取得
-    e_label.css('span').remove
-    next if e_label.css('input').nil? or 
-      e_label.css('input')[0].nil? or
-      (e_label.css('input')[0]['class'] != "prg-flowchk" and
-       e_label.css('input')[0]['class'] != "count-zero")
-
-    eki_id = e_label.css('input')[0]['value']
-    eki_name = e_label.text.gsub("\n", "").gsub(" ", "")
-
-    ret << [ken_name, rosen_name, rosen_id, eki_name, eki_id]
-  end
-
-  return ret
-
+  row[0].sub!("value", "")
+  f.write row.join("\t")
+  f.write "\n"
 end
 
-def get_line(rosen_file_path)
-  ret = []
-  ken_dir_path = File.dirname(rosen_file_path)
-  ken_name = ken_dir_path.sub("./data/html/", "")
+# 駅の検索条件
+CSV.foreach("./data/query/station_cond.tsv", {:col_sep => "\t"}) do |row|
+  row.delete(nil)
 
-  doc = Nokogiri::HTML(File.open(rosen_file_path))
+  # 駅ID が取得できない行は無視
+  next unless row.index("nil").nil?
 
-  e_form = doc.css('form#prg-flowRosen')
-
-  e_form.css('label').each do |e_label|
-    row = []
-    rosen_name = nil
-    rosen_id = nil
-    # 路線名, 路線ID を取得
-    unless e_label.css('input').attr('disabled').nil?
-      e_label.css('span').remove
-      rosen_name = e_label.text.gsub("\n", "").strip
-      rosen_id = e_label.css('input').attr('value').value.to_i
-    else
-      rosen_name = e_label.css('a').text
-      rosen_id = e_label.css('input').attr('value').value.to_i
-    end
-
-    # 駅名, 駅名ID を取得
-    ret += get_station(ken_dir_path, ken_name, rosen_name, rosen_id)
-  end
-
-  return ret
+  # 駅名, 検索ID, 0, 1
+  f.write row[1] + "-" + row[3] + "\t" + row[5] + "\t" + "0" + "\t" + "1" + "\n"
 end
 
+f.close
 
-# 都道府県名, 路線名, 路線ID, 駅名, 駅名ID
-# を取得して TSV ファイルに出力
-def get_scrape_tsv(rosen_file_path)
-  infos = get_line(rosen_file_path)
-  f = File.open("station_info.tsv", "a")
-  infos.each do |info|
-    f.write info.join("\t")
-    f.write "\n"
-  end
-  f.close
+cond_table = []
+
+CSV.foreach("./data/query/cond_table.tsv", {:col_sep => "\t"}) do |row|
+  cond = []
+  cond << row[1]
+  cond << row[0]
+  cond << row[2..(row.size - 1)]
+  cond_table << cond
 end
 
-#begin
-#  File.unlink "./query.tsv"
-#rescue
-#  puts "rm tsv file error. But no problem!"
+virtual_data = []
+
+# 検索名行(ヘッダ)を格納
+row = []
+cond_table.each do |c|
+  row << c[1]
+end
+virtual_data << row
+
+# 検索ID行(ヘッダ)を格納
+row = []
+cond_table.each do |c|
+  row << c[0]
+end
+virtual_data << row
+
+# 仮想検索データを格納
+500.times do
+  row = []
+  cond_table.each do |c|
+    row << c[2][rand(c[2].size)]
+  end
+  virtual_data << row 
+end
+
+# 仮想検索データをTSVに出力
+f = File.open("./data/query/virtual_query.tsv", "w")
+virtual_data.each do |data|
+  f.write data.join("\t")
+  f.write "\n"
+end
+f.close
+
+#CSV.foreach("./data/query/virtual_query.tsv", {:col_sep => "\t"}) do |row|
+#  p row.size
 #end
-
-# 検索条件分類名, 検索条件分類ID
-def get_query(e_table)
-  e_table.css('th').each do |e_th|
-    e_th.text
-    e_table.css('td > select').each do |e_select|
-      p e_select['name']
-    end
-  end
-end
-
-def get_query_detail(e_table)
-end
-
-doc = Nokogiri::HTML(File.open("data/search_detail.html"))
-e_form = doc.css('form#prg-flowform')
-
-e_form.css('table').each do |e_table|
-  if e_table['class'] == "prg-tblBasic01 vertical"
-    get_query(e_table)
-
-  elsif  e_table['class'] == "vertical prg-tblBasic01"
-    get_query_detail(e_table)
-  end
-  ## 路線名, 路線ID を取得
-  #e_label.css('span').remove
-  #next if e_label.css('input').nil? or 
-  #  e_label.css('input')[0].nil? or
-  #  (e_label.css('input')[0]['class'] != "prg-flowchk" and
-  #   e_label.css('input')[0]['class'] != "count-zero")
-  # 
-  #eki_id = e_label.css('input')[0]['value']
-  #eki_name = e_label.text.gsub("\n", "").gsub(" ", "")
-  # 
-  #ret << [ken_name, rosen_name, rosen_id, eki_name, eki_id]
-end
-

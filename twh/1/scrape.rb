@@ -9,7 +9,7 @@ def get_station(ken_dir_path, ken_name, rosen_name, rosen_id)
   target_path = ken_dir_path + "/" + ken_name + "_" + rosen_name + ".html"
 
   unless File.exist?(target_path)
-    ret << [ken_name, rosen_name, rosen_id, "nil", "nil"]
+    ret << [ken_name, rosen_name, rosen_id, "nil", "nil", "nil"]
     return ret
   end
 
@@ -27,8 +27,9 @@ def get_station(ken_dir_path, ken_name, rosen_name, rosen_id)
 
     eki_id = e_label.css('input')[0]['value']
     eki_name = e_label.text.gsub("\n", "").gsub(" ", "")
+    query_id = e_label.css('input')[0]['name']
 
-    ret << [ken_name, rosen_name, rosen_id, eki_name, eki_id]
+    ret << [ken_name, rosen_name, rosen_id, eki_name, eki_id, query_id]
   end
 
   return ret
@@ -47,16 +48,14 @@ def get_line(rosen_file_path)
   e_form.css('label').each do |e_label|
     row = []
     rosen_name = nil
-    rosen_id = nil
     # 路線名, 路線ID を取得
     unless e_label.css('input').attr('disabled').nil?
       e_label.css('span').remove
       rosen_name = e_label.text.gsub("\n", "").strip
-      rosen_id = e_label.css('input').attr('value').value.to_i
     else
       rosen_name = e_label.css('a').text
-      rosen_id = e_label.css('input').attr('value').value.to_i
     end
+    rosen_id = e_label.css('input').attr('value').value.to_i
 
     # 駅名, 駅名ID を取得
     ret += get_station(ken_dir_path, ken_name, rosen_name, rosen_id)
@@ -66,11 +65,11 @@ def get_line(rosen_file_path)
 end
 
 
-# 都道府県名, 路線名, 路線ID, 駅名, 駅名ID
+# 都道府県名, 路線名, 路線ID, 駅名, 駅名ID, 駅名クエリID
 # を取得して TSV ファイルに出力
 def get_scrape_tsv(rosen_file_path)
   infos = get_line(rosen_file_path)
-  f = File.open("station_info.tsv", "a")
+  f = File.open("./data/query/station_cond.tsv", "a")
   infos.each do |info|
     f.write info.join("\t")
     f.write "\n"
@@ -79,7 +78,7 @@ def get_scrape_tsv(rosen_file_path)
 end
 
 begin
-  File.unlink "./station_info.tsv"
+  File.unlink "./data/query/station_cond.tsv"
 rescue
   puts "rm tsv file error. But no problem!"
 end
